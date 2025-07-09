@@ -1,11 +1,8 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const session = require('express-session');
-const { authenticated } = require('./router/auth_users.js');
+const session = require('express-session')
 const customer_routes = require('./router/auth_users.js').authenticated;
 const genl_routes = require('./router/general.js').general;
-const books_route = require('./router/booksdb.js');
-
 
 const app = express();
 
@@ -13,37 +10,25 @@ app.use(express.json());
 
 app.use("/customer",session({secret:"fingerprint_customer",resave: true, saveUninitialized: true}))
 
-app.use("/books", books_route);
-
-
 app.use("/customer/auth/*", function auth(req, res, next) {
-    // Check if the user is authenticated via session
+    // Check if there's an active session and a stored token
+    if (req.session && req.session.authorization) {
+        const token = req.session.authorization.token;
 
-        // Check if there's a JWT token in the request headers
-console.log(req.session)
-
-        if(req.session){
-            if(req.session.authorization){
-                    let token = req.session.authorization.token;
-                    jwt.verify(token, 'my-secret-key', (err, user) => {
-                        if (err) {
-                            // Token verification failed
-                            res.status(401).json({ error: 'galek err' });
-                        } else {
-                            req.session.user = user;
-                            next();
-                        }
-                    });
-
-
+        // Verify the JWT token using the same secret key used to sign it
+        jwt.verify(token, 'my-secret-key', (err, user) => {
+            if (err) {
+                return res.status(403).json({ message: "Invalid token" });
+            } else {
+                // Token is valid, optionally attach user info to request
+                req.user = user;
+                next(); // proceed to the next middleware/route
             }
-            else{
-                res.status(401).json({ error: 'Unauthorized here' });
-            }
-        }
-
-
-    
+        });
+    } else {
+        // No session or no token → unauthorized
+        return res.status(401).json({ message: "User not logged in" });
+    }
 });
 
  
